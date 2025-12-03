@@ -1,15 +1,14 @@
-# .github/workflows/hf-download-and-run.yaml
 name: Run program from Hugging Face
 
 on:
-  workflow_dispatch:   # permet de lancer le workflow manuellement depuis l’onglet Actions
+  workflow_dispatch:
 
 jobs:
   run-hf-program:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository (vide — juste pour init)
+      - name: Checkout repository (even if empty)
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -20,9 +19,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install torch transformers huggingface_hub
+          pip install streamlit torch transformers huggingface_hub
 
-      - name: Download script from Hugging Face
+      - name: Download app.py from Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -31,7 +30,7 @@ jobs:
             -o app.py \
             https://huggingface.co/spaces/jeremyvarin/pp/resolve/main/app.py
 
-      - name: Run downloaded script
+      - name: Run app.py
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
