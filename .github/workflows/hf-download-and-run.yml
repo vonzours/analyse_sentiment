@@ -1,7 +1,7 @@
 name: Run HF Sentiment Model (Headless)
 
 on:
-  workflow_dispatch:  # on le déclenche à la main
+  workflow_dispatch:
 
 jobs:
   run-model:
@@ -21,9 +21,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install torch transformers huggingface_hub
 
-      # Ici on ne télécharge PAS app.py, on recrée un petit script de test
-      # qui reprend la même logique modèle BERT + LSTM que ton app Streamlit.
-
       - name: Create headless runner
         run: |
           cat << 'EOF' > headless_runner.py
@@ -32,7 +29,6 @@ jobs:
           from transformers import AutoTokenizer, AutoModel
           from huggingface_hub import hf_hub_download
 
-          device = "cpu"
           embedding_dim = 768
           hidden_dim = 128
           num_classes = 2
@@ -50,49 +46,41 @@ jobs:
                   lstm_out, _ = self.lstm(embeddings)
                   return self.fc(lstm_out[:, -1, :])
 
-          print("-> Loading tokenizer and BERT...")
+          print("Loading tokenizer and BERT...")
           tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
           bert = AutoModel.from_pretrained("distilbert-base-uncased")
           bert.eval()
 
-          print("-> Downloading LSTM model from Hugging Face...")
+          print("Downloading LSTM model...")
           lstm_path = hf_hub_download(
               repo_id="jeremyvarin/pp",
               filename="lstm_distilbert_state.pth"
           )
 
-          print("-> Loading LSTM model state dict...")
+          print("Loading LSTM weights...")
           model = LSTMClassifier(embedding_dim, hidden_dim, num_classes)
           model.load_state_dict(torch.load(lstm_path, map_location="cpu"))
           model.eval()
 
-          def predict(text: str):
+          def predict(text):
               tokens = tokenizer(
-                  text,
-                  truncation=True,
-                  padding=True,
-                  return_tensors="pt",
-                  max_length=128
+                  text, truncation=True, padding=True,
+                  return_tensors="pt", max_length=128
               )
-
               with torch.no_grad():
                   bert_out = bert(
                       input_ids=tokens["input_ids"],
                       attention_mask=tokens["attention_mask"]
                   ).last_hidden_state
-
                   logits = model(bert_out)
                   probs = torch.softmax(logits, dim=1)
                   label = torch.argmax(probs, dim=1).item()
-
               return label, float(probs[0][label])
 
-          if __name__ == "__main__":
-              test_sentence = "I love this product!"
-              print(f"-> Testing on: {test_sentence!r}")
-              label, conf = predict(test_sentence)
-              sentiment = "POSITIVE" if label == 1 else "NEGATIVE"
-              print(f"Prediction: {sentiment} (confidence={conf:.4f})")
+          # test simple
+          sentence = "I love this product!"
+          label, conf = predict(sentence)
+          print("Prediction:", "POSITIVE" if label==1 else "NEGATIVE", conf)
           EOF
 
       - name: Run headless test
